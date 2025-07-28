@@ -21,4 +21,6 @@
 <use name="Geometry/CaloGeometry"/>
 <use name="DataFormats/GeometryVector"/>
 <use name="Geometry/Records"/>
+<use name="correction"/>
+<use name="correctionlib"/>
 <flags EDM_PLUGIN="1"/>

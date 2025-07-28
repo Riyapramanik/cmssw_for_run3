@@ -1,11 +1,16 @@
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
 #include "DataFormats/GsfTrackReco/interface/GsfTrackFwd.h"
+#include "DataFormats/EcalDetId/interface/EBDetId.h"
+#include "DataFormats/EcalDetId/interface/EEDetId.h"
 #include "DataFormats/EcalDetId/interface/ESDetId.h"
+#include "DataFormats/EcalRecHit/interface/EcalRecHit.h"
+#include "DataFormats/EcalRecHit/interface/EcalRecHitCollections.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "RecoEcal/EgammaCoreTools/interface/EcalClusterLazyTools.h"
 //#include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
 
 #include "ggAnalysis/ggNtuplizer/interface/ggNtuplizer.h"
+#include "ggAnalysis/ggNtuplizer/interface/EGMIDSFManager.h"
 
 // (local) variables associated with tree branches
 Int_t          nEle_;
@@ -22,12 +27,9 @@ vector<float>  eleD0_;
 vector<float>  eleDz_;
 vector<float>  eleSIP_;
 vector<float>  elePt_;
-vector<float>  elePtError_;
 vector<float>  eleEta_;
 vector<float>  elePhi_;
 vector<float>  eleR9_;
-vector<float>  eleCalibPt_;
-vector<float>  eleCalibEn_;
 vector<float>  eleSCEta_;
 vector<float>  eleSCPhi_;
 vector<float>  eleSCRawEn_;
@@ -42,7 +44,6 @@ vector<float>  eledEtaAtVtx_;
 vector<float>  eledPhiAtVtx_;
 vector<float>  eleSigmaIEtaIEtaFull5x5_;
 vector<float>  eleSigmaIPhiIPhiFull5x5_;
-vector<int>    eleConvVeto_;
 vector<int>    eleMissHits_;
 vector<float>  eleESEffSigmaRR_;
 vector<float>  elePFChIso_;
@@ -59,20 +60,36 @@ vector<float>  eleTrkdxy_;
 vector<float>  eleKFHits_;
 vector<float>  eleKFChi2_;
 vector<float>  eleGSFChi2_;
-vector<ULong64_t> eleFiredSingleTrgs_;
-vector<ULong64_t> eleFiredDoubleTrgs_;
-vector<ULong64_t> eleFiredL1Trgs_;
 vector<UShort_t>  eleIDbit_;
-vector<float>  eleScale_stat_up_;
-vector<float>  eleScale_stat_dn_;
-vector<float>  eleScale_syst_up_;
-vector<float>  eleScale_syst_dn_;
-vector<float>  eleScale_gain_up_;
-vector<float>  eleScale_gain_dn_;
-vector<float>  eleResol_rho_up_;
-vector<float>  eleResol_rho_dn_;
-vector<float>  eleResol_phi_up_;
-vector<float>  eleResol_phi_dn_;
+
+//Scale and smearing value
+vector<float>  eleTrkEnergyPostCorr_;
+vector<float>  eleenergyScaleValue_;
+vector<float>  eleenergySigmaValue_;
+vector<float>  eleScale_unc_up_;
+vector<float>  eleScale_unc_dn_;
+vector<float>  eleSigma_unc_up_;
+vector<float>  eleSigma_unc_dn_;
+
+//ID SF and SF Uncertainity
+vector<float>  eleIDSF_Loose_;
+vector<float>  eleIDSF_Medium_;
+vector<float>  eleIDSF_Tight_;
+vector<float>  eleIDSF_wp80iso_;
+vector<float>  eleIDSF_wp90iso_;
+
+vector<float>  eleIDSFUp_Loose_;
+vector<float>  eleIDSFUp_Medium_;
+vector<float>  eleIDSFUp_Tight_;
+vector<float>  eleIDSFUp_wp80iso_;      
+vector<float>  eleIDSFUp_wp90iso_;
+
+vector<float>  eleIDSFDown_Loose_;
+vector<float>  eleIDSFDown_Medium_;
+vector<float>  eleIDSFDown_Tight_;
+vector<float>  eleIDSFDown_wp80iso_;   
+vector<float>  eleIDSFDown_wp90iso_;
+//End ID SF and SF Uncertainity
 
 vector<vector<float> > eleGSFPt_;
 vector<vector<float> > eleGSFEta_;
@@ -101,6 +118,8 @@ vector<float> gsfPhi_;
 
 void ggNtuplizer::branchesElectrons(TTree* tree) {
 
+  if(store_electrons){
+    
   tree->Branch("nEle",                    &nEle_);
   tree->Branch("eleCharge",               &eleCharge_);
   tree->Branch("eleChargeConsistent",     &eleChargeConsistent_);
@@ -113,12 +132,9 @@ void ggNtuplizer::branchesElectrons(TTree* tree) {
   tree->Branch("eleDz",                   &eleDz_);
   tree->Branch("eleSIP",                  &eleSIP_);
   tree->Branch("elePt",                   &elePt_);
-  tree->Branch("elePtError",              &elePtError_);
   tree->Branch("eleEta",                  &eleEta_);
   tree->Branch("elePhi",                  &elePhi_);
   tree->Branch("eleR9",                   &eleR9_);
-  tree->Branch("eleCalibPt",              &eleCalibPt_);
-  tree->Branch("eleCalibEn",              &eleCalibEn_);
   tree->Branch("eleSCEta",                &eleSCEta_);
   tree->Branch("eleSCPhi",                &eleSCPhi_);
   tree->Branch("eleSCRawEn",              &eleSCRawEn_);
@@ -133,7 +149,6 @@ void ggNtuplizer::branchesElectrons(TTree* tree) {
   tree->Branch("eledPhiAtVtx",            &eledPhiAtVtx_);
   tree->Branch("eleSigmaIEtaIEtaFull5x5", &eleSigmaIEtaIEtaFull5x5_);
   tree->Branch("eleSigmaIPhiIPhiFull5x5", &eleSigmaIPhiIPhiFull5x5_);
-  //  tree->Branch("eleConvVeto",             &eleConvVeto_);
   tree->Branch("eleMissHits",             &eleMissHits_);
   tree->Branch("eleESEffSigmaRR",         &eleESEffSigmaRR_);
   tree->Branch("elePFChIso",              &elePFChIso_);
@@ -160,20 +175,40 @@ void ggNtuplizer::branchesElectrons(TTree* tree) {
   tree->Branch("eleGSFVtxProb",               &eleGSFVtxProb_);
   tree->Branch("eleGSFlxyPV",                 &eleGSFlxyPV_);
   tree->Branch("eleGSFlxyBS",                 &eleGSFlxyBS_);
-  tree->Branch("eleFiredSingleTrgs",          &eleFiredSingleTrgs_);
-  tree->Branch("eleFiredDoubleTrgs",          &eleFiredDoubleTrgs_);
-  tree->Branch("eleFiredL1Trgs",              &eleFiredL1Trgs_);
   tree->Branch("eleIDbit",                    &eleIDbit_);
-  tree->Branch("eleScale_stat_up",            &eleScale_stat_up_);
-  tree->Branch("eleScale_stat_dn",            &eleScale_stat_dn_);
-  tree->Branch("eleScale_syst_up",            &eleScale_syst_up_);
-  tree->Branch("eleScale_syst_dn",            &eleScale_syst_dn_);
-  tree->Branch("eleScale_gain_up",            &eleScale_gain_up_);
-  tree->Branch("eleScale_gain_dn",            &eleScale_gain_dn_);
-  tree->Branch("eleResol_rho_up",             &eleResol_rho_up_);
-  tree->Branch("eleResol_rho_dn",             &eleResol_rho_dn_);
-  tree->Branch("eleResol_phi_up",             &eleResol_phi_up_);
-  tree->Branch("eleResol_phi_dn",             &eleResol_phi_dn_);
+  
+  if(store_electron_scalnsmear){
+  tree->Branch("eleecalTrkEnergyPostCorr",      &eleTrkEnergyPostCorr_);
+  tree->Branch("eleenergyScaleValue",            &eleenergyScaleValue_);
+  tree->Branch("eleenergySigmaValue_",        &eleenergySigmaValue_);
+  tree->Branch("eleScale_unc_up",             &eleScale_unc_up_);
+  tree->Branch("eleScale_unc_dn",            &eleScale_unc_dn_);
+  tree->Branch("eleSigma_unc_up",             &eleSigma_unc_up_);
+  tree->Branch("eleSigma_unc_dn",             &eleSigma_unc_dn_);
+  }
+
+  if(store_electron_idSF){
+  // Scale factors
+  tree->Branch("eleIDSF_Loose",      &eleIDSF_Loose_);
+  tree->Branch("eleIDSF_Medium",     &eleIDSF_Medium_);
+  tree->Branch("eleIDSF_Tight",      &eleIDSF_Tight_);
+  tree->Branch("eleIDSF_wp80iso",    &eleIDSF_wp80iso_);
+  tree->Branch("eleIDSF_wp90iso",    &eleIDSF_wp90iso_);
+  
+  // Uncertainties UP
+  tree->Branch("eleIDSFUp_Loose",    &eleIDSFUp_Loose_);
+  tree->Branch("eleIDSFUp_Medium",   &eleIDSFUp_Medium_);
+  tree->Branch("eleIDSFUp_Tight",    &eleIDSFUp_Tight_);
+  tree->Branch("eleIDSFUp_wp80iso",  &eleIDSFUp_wp80iso_);  
+  tree->Branch("eleIDSFUp_wp90iso",  &eleIDSFUp_wp90iso_);   
+  
+  // Uncertainties DOWN
+  tree->Branch("eleIDSFDown_Loose",    &eleIDSFDown_Loose_);
+  tree->Branch("eleIDSFDown_Medium",   &eleIDSFDown_Medium_);
+  tree->Branch("eleIDSFDown_Tight",    &eleIDSFDown_Tight_);
+  tree->Branch("eleIDSFDown_wp80iso",  &eleIDSFDown_wp80iso_);
+  tree->Branch("eleIDSFDown_wp90iso",  &eleIDSFDown_wp90iso_);  
+}
 
   if (development_) {
     tree->Branch("eleESEnP1Raw",              &eleESEnP1Raw_);
@@ -191,11 +226,12 @@ void ggNtuplizer::branchesElectrons(TTree* tree) {
     tree->Branch("gsfEta",                    &gsfEta_);
     tree->Branch("gsfPhi",                    &gsfPhi_);
   }
+  }
   
 }
 
 void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, math::XYZPoint &pv) {
-    
+  if(store_electrons){    
   // cleanup from previous execution
   eleCharge_                  .clear();
   eleChargeConsistent_        .clear();
@@ -218,12 +254,9 @@ void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, 
   eleDz_                      .clear();
   eleSIP_                     .clear();
   elePt_                      .clear();
-  elePtError_                 .clear();
   eleEta_                     .clear();
   elePhi_                     .clear();
   eleR9_                      .clear();
-  eleCalibPt_                 .clear();
-  eleCalibEn_                 .clear();
   eleSCEta_                   .clear();
   eleSCPhi_                   .clear();
   eleSCRawEn_                 .clear();
@@ -238,7 +271,6 @@ void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, 
   eledPhiAtVtx_               .clear();
   eleSigmaIEtaIEtaFull5x5_    .clear();
   eleSigmaIPhiIPhiFull5x5_    .clear();
-  eleConvVeto_                .clear();
   eleMissHits_                .clear();
   eleESEffSigmaRR_            .clear();
   elePFChIso_                 .clear();
@@ -265,21 +297,33 @@ void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, 
   eleGSFVtxProb_              .clear();
   eleGSFlxyPV_                .clear();
   eleGSFlxyBS_                .clear();
-  eleFiredSingleTrgs_         .clear();
-  eleFiredDoubleTrgs_         .clear();
-  eleFiredL1Trgs_             .clear();
   eleIDbit_                   .clear();
-  eleScale_stat_up_           .clear();
-  eleScale_stat_dn_           .clear();
-  eleScale_syst_up_           .clear();
-  eleScale_syst_dn_           .clear();
-  eleScale_gain_up_           .clear();
-  eleScale_gain_dn_           .clear();
-  eleResol_rho_up_            .clear();
-  eleResol_rho_dn_            .clear();
-  eleResol_phi_up_            .clear();
-  eleResol_phi_dn_            .clear();
 
+  eleIDSF_Loose_       .clear();
+  eleIDSF_Medium_      .clear();
+  eleIDSF_Tight_       .clear();
+  eleIDSF_wp80iso_     .clear();
+  eleIDSF_wp90iso_     .clear();
+  eleIDSFUp_Loose_     .clear();
+  eleIDSFUp_Medium_    .clear();
+  eleIDSFUp_Tight_     .clear();
+  eleIDSFUp_wp80iso_   .clear();   
+  eleIDSFUp_wp90iso_   .clear();     
+  eleIDSFDown_Loose_   .clear();
+  eleIDSFDown_Medium_  .clear();
+  eleIDSFDown_Tight_   .clear();
+  eleIDSFDown_wp80iso_ .clear(); 
+  eleIDSFDown_wp90iso_ .clear();  
+  
+  eleTrkEnergyPostCorr_       .clear();
+  eleenergyScaleValue_        .clear();
+  eleenergySigmaValue_        .clear();
+  eleScale_unc_up_           .clear();
+  eleScale_unc_dn_           .clear();
+  eleSigma_unc_up_           .clear();
+  eleSigma_unc_dn_           .clear();
+  }
+  
   nEle_ = 0;
 
   edm::Handle<edm::View<pat::Electron> > electronHandle;
@@ -299,18 +343,17 @@ void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, 
   EcalClusterLazyTools       lazyTool    (e, ecalClusterToolsESGetTokens_.get(es), ebReducedRecHitCollection_, eeReducedRecHitCollection_, esReducedRecHitCollection_);
   noZS::EcalClusterLazyTools lazyToolnoZS(e, ecalClusterToolsESGetTokens_.get(es), ebReducedRecHitCollection_, eeReducedRecHitCollection_, esReducedRecHitCollection_);
 
+  if(store_electrons){
   for (edm::View<pat::Electron>::const_iterator iEle = electronHandle->begin(); iEle != electronHandle->end(); ++iEle) {
 
     eleCharge_          .push_back(iEle->charge());
     eleChargeConsistent_.push_back((Int_t)iEle->isGsfCtfScPixChargeConsistent());
     eleEn_              .push_back(iEle->energy());
-    //eleCalibEn_         .push_back(iEle->userFloat("ecalEnergyPostCorr"));
+    
     eleD0_              .push_back(iEle->gsfTrack()->dxy(pv));
     eleDz_              .push_back(iEle->gsfTrack()->dz(pv));
     eleSIP_             .push_back(fabs(iEle->dB(pat::Electron::PV3D))/iEle->edB(pat::Electron::PV3D));
     elePt_              .push_back(iEle->pt());
-    //eleCalibPt_         .push_back(iEle->userFloat("ecalTrkEnergyPostCorr")*iEle->pt()/iEle->p());
-    //elePtError_         .push_back(iEle->userFloat("ecalTrkEnergyErrPostCorr")*iEle->pt()/iEle->p());
     eleEta_             .push_back(iEle->eta());
     elePhi_             .push_back(iEle->phi());
     eleR9_              .push_back(iEle->r9());
@@ -324,18 +367,13 @@ void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, 
     eleSCEtaWidth_      .push_back(iEle->superCluster()->etaWidth());
     eleSCPhiWidth_      .push_back(iEle->superCluster()->phiWidth());
     eleHoverE_          .push_back(iEle->hcalOverEcal());
-
-    //eleFiredSingleTrgs_ .push_back(matchSingleElectronTriggerFilters(iEle->pt(), iEle->eta(), iEle->phi()));
-    //eleFiredDoubleTrgs_ .push_back(matchDoubleElectronTriggerFilters(iEle->pt(), iEle->eta(), iEle->phi()));
-    //eleFiredL1Trgs_     .push_back(matchL1TriggerFilters(iEle->pt(), iEle->eta(), iEle->phi()));
-
+    
     ///https://cmssdt.cern.ch/SDT/doxygen/CMSSW_7_2_2/doc/html/d8/dac/GsfElectron_8h_source.html
     eleEoverP_          .push_back(iEle->eSuperClusterOverP());
     eleEoverPout_       .push_back(iEle->eEleClusterOverPout());
     eleBrem_            .push_back(iEle->fbrem());
     eledEtaAtVtx_       .push_back(iEle->deltaEtaSuperClusterTrackAtVtx());
     eledPhiAtVtx_       .push_back(iEle->deltaPhiSuperClusterTrackAtVtx());
-    //    eleConvVeto_        .push_back((Int_t)iEle->passConversionVeto()); // ConvVtxFit || missHit == 0
     eleMissHits_        .push_back(iEle->gsfTrack()->hitPattern().numberOfAllHits(reco::HitPattern::MISSING_INNER_HITS));
     eleESEffSigmaRR_    .push_back(lazyTool.eseffsirir(*((*iEle).superCluster())));
 
@@ -354,18 +392,81 @@ void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, 
     eleSigmaIPhiIPhiFull5x5_.push_back(iEle->full5x5_sigmaIphiIphi());
     eleR9Full5x5_           .push_back(iEle->full5x5_r9());
     eleEcalDrivenSeed_      .push_back(iEle->ecalDrivenSeed());
-    /*
-    eleScale_stat_up_.push_back(iEle->userFloat("energyScaleStatUp"));
-    eleScale_stat_dn_.push_back(iEle->userFloat("energyScaleStatDown"));
-    eleScale_syst_up_.push_back(iEle->userFloat("energyScaleSystUp"));
-    eleScale_syst_dn_.push_back(iEle->userFloat("energyScaleSystDown"));
-    eleScale_gain_up_.push_back(iEle->userFloat("energyScaleGainUp"));
-    eleScale_gain_dn_.push_back(iEle->userFloat("energyScaleGainDown"));
-    eleResol_rho_up_ .push_back(iEle->userFloat("energySigmaRhoUp"));
-    eleResol_rho_dn_ .push_back(iEle->userFloat("energySigmaRhoDown"));
-    eleResol_phi_up_ .push_back(iEle->userFloat("energySigmaPhiUp"));
-    eleResol_phi_dn_ .push_back(iEle->userFloat("energySigmaPhiDown"));
-    */
+    
+    if(store_electron_scalnsmear){
+      try{
+	float originalPt = iEle->pt();
+	float scEta = iEle->superCluster()->eta();
+	float r9 = iEle->r9();
+	DetId seedDetId = iEle->superCluster()->seed()->seed();
+	int seedGain = EGMCorrectionManager::GetSeedGain(seedDetId, e, ebReducedRecHitCollection_, eeReducedRecHitCollection_);
+	int run = isData_ ? e.id().run() : 1;
+	double randomNum = isData_ ? 0.0 : normalDistribution_(randomGenerator_);
+	double correctedPt = egmCorrectionManager_->applyCorrectedElectronPt(originalPt, run, scEta, r9, seedGain, isData_, randomNum);
+	eleTrkEnergyPostCorr_.push_back(correctedPt);
+	if (isData_) {
+	  double scale = egmCorrectionManager_->getElectronScale(run, scEta, r9, originalPt, seedGain);
+	  double scaleUnc = egmCorrectionManager_->getElectronScaleUnc(originalPt, r9, std::abs(scEta));
+   	  
+	  eleenergyScaleValue_.push_back(scale);
+	  eleScale_unc_up_.push_back(scale + scaleUnc);
+	  eleScale_unc_dn_.push_back(scale - scaleUnc);
+
+	  eleenergySigmaValue_.push_back(0.0); // No smearing for data
+	  eleSigma_unc_up_.push_back(0.0);
+	  eleSigma_unc_dn_.push_back(0.0);
+	  
+	} else {
+          double smear = egmCorrectionManager_->getElectronSmear(originalPt, r9, std::abs(scEta));
+          double smearUnc = egmCorrectionManager_->getElectronSmearUnc(originalPt, r9, std::abs(scEta));
+	  
+	  eleenergyScaleValue_.push_back(1.0); // No scale for MC
+	  eleScale_unc_up_.push_back(0.0);
+	  eleScale_unc_dn_.push_back(0.0);
+	  
+	  eleenergySigmaValue_.push_back(smear);
+	  eleSigma_unc_up_.push_back(smear + smearUnc);
+          eleSigma_unc_dn_.push_back(smear - smearUnc);
+	}
+      }
+      catch (const std::exception& e) {
+      // Fall back to original values
+      eleTrkEnergyPostCorr_.push_back(iEle->pt());
+      eleenergyScaleValue_.push_back(1.0);
+      eleenergySigmaValue_.push_back(0.0);
+      eleScale_unc_up_.push_back(1.0);
+      eleScale_unc_dn_.push_back(1.0);
+      eleSigma_unc_up_.push_back(0.0);
+      eleSigma_unc_dn_.push_back(0.0);
+    }
+
+    }//End of scale and smearing
+
+    //store SF and SF unc
+    if(store_electron_idSF){
+    double pt = iEle->pt();
+    double eta = iEle->eta();
+    double phi = iEle->phi();
+    
+    eleIDSF_Loose_.push_back(egmIDSFManager_->getElectronIDSF("Loose", pt, eta, phi));
+    eleIDSF_Medium_.push_back(egmIDSFManager_->getElectronIDSF("Medium", pt, eta, phi));
+    eleIDSF_Tight_.push_back(egmIDSFManager_->getElectronIDSF("Tight", pt, eta, phi));
+    eleIDSF_wp80iso_.push_back(egmIDSFManager_->getElectronIDSF("wp80iso", pt, eta, phi));
+    eleIDSF_wp90iso_.push_back(egmIDSFManager_->getElectronIDSF("wp90iso", pt, eta, phi));
+    
+    eleIDSFUp_Loose_.push_back(egmIDSFManager_->getElectronIDSFUncUp("Loose", pt, eta, phi));
+    eleIDSFUp_Medium_.push_back(egmIDSFManager_->getElectronIDSFUncUp("Medium", pt, eta, phi));
+    eleIDSFUp_Tight_.push_back(egmIDSFManager_->getElectronIDSFUncUp("Tight", pt, eta, phi));
+    eleIDSFUp_wp80iso_.push_back(egmIDSFManager_->getElectronIDSFUncUp("wp80iso", pt, eta, phi));  
+    eleIDSFUp_wp90iso_.push_back(egmIDSFManager_->getElectronIDSFUncUp("wp90iso", pt, eta, phi));  
+    
+    eleIDSFDown_Loose_.push_back(egmIDSFManager_->getElectronIDSFUncDown("Loose", pt, eta, phi));
+    eleIDSFDown_Medium_.push_back(egmIDSFManager_->getElectronIDSFUncDown("Medium", pt, eta, phi));
+    eleIDSFDown_Tight_.push_back(egmIDSFManager_->getElectronIDSFUncDown("Tight", pt, eta, phi));
+    eleIDSFDown_wp80iso_.push_back(egmIDSFManager_->getElectronIDSFUncDown("wp80iso", pt, eta, phi)); 
+    eleIDSFDown_wp90iso_.push_back(egmIDSFManager_->getElectronIDSFUncDown("wp90iso", pt, eta, phi));  
+  }//End of SF
+    
     reco::GsfTrackRef gsfTrackRef = iEle->gsfTrack();
     if (iEle->gsfTrack().isNonnull()) {
       eleGSFChi2_.push_back(gsfTrackRef->normalizedChi2());
@@ -487,4 +588,6 @@ void ggNtuplizer::fillElectrons(const edm::Event &e, const edm::EventSetup &es, 
     
   }
   
+
+  }
 }

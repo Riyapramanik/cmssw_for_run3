@@ -62,7 +62,7 @@ const std::vector<std::string> filterNamesToCheck = {
     "Flag_HBHENoiseIsoFilter",
     "Flag_EcalDeadCellTriggerPrimitiveFilter",
     "Flag_BadPFMuonFilter",
-    "Flag_BadChargedCandidateFilter"
+    "Flag_BadChargedCandidateFilter",
     "Flag_eeBadScFilter",
     "Flag_ecalBadCalibFilter",
     "Flag_BadPFMuonDzFilter",
@@ -172,7 +172,7 @@ void ggNtuplizer::fillMET(const edm::Event& e, const edm::EventSetup& es) {
         if (pfMETHandle.isValid()) {
             genMET_    = pfMET->genMET()->et();
             genMETPhi_ = pfMET->genMET()->phi();
-        } else if (pfMETHandle.isValid()) {
+        } else if (puppiMETHandle.isValid()) {
             genMET_    = puppiMET->genMET()->et();
             genMETPhi_ = puppiMET->genMET()->phi();
         }

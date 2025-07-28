@@ -33,6 +33,8 @@
 <use name="CondTools/BTau"/>
 <use name="fastjet"/>
 <use name="fastjet-contrib"/>
+<use name="correction"/>
+<use name="correctionlib"/>
 <flags EDM_PLUGIN="1"/>
 <export>
 	<lib name="1"/>

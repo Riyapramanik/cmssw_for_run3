@@ -2,17 +2,15 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "RecoEcal/EgammaCoreTools/interface/EcalClusterLazyTools.h"
 #include "ggAnalysis/ggNtuplizer/interface/ggNtuplizer.h"
+#include "ggAnalysis/ggNtuplizer/interface/EGMIDSFManager.h"
 
 using namespace std;
 
 Int_t          nPho_;
 vector<float>  phoE_;
-vector<float>  phoSigmaE_;
 vector<float>  phoEt_;
 vector<float>  phoEta_;
 vector<float>  phoPhi_;
-vector<float>  phoCalibE_;
-vector<float>  phoCalibEt_;
 vector<float>  phoSCE_;
 vector<float>  phoSCRawE_;
 vector<float>  phoESEnP1_;
@@ -40,10 +38,6 @@ vector<float>  phoPFChWorstIso_;
 vector<float>  phoSeedBCE_;
 vector<float>  phoSeedBCEta_;
 vector<float>  phoIDMVA_;
-vector<ULong64_t> phoFiredSingleTrgs_;
-vector<ULong64_t> phoFiredDoubleTrgs_;
-vector<ULong64_t> phoFiredTripleTrgs_;
-vector<ULong64_t> phoFiredL1Trgs_;
 vector<float>  phoSeedTime_;
 vector<float>  phoSeedEnergy_;
 vector<float>  phoMIPTotEnergy_;
@@ -53,18 +47,7 @@ vector<float>  phoMIPSlope_;
 vector<float>  phoMIPIntercept_;
 vector<float>  phoMIPNhitCone_;
 vector<float>  phoMIPIsHalo_;
-vector<UShort_t> phoxtalBits_;
 vector<UShort_t> phoIDbit_;
-vector<float>    phoScale_stat_up_;
-vector<float>    phoScale_stat_dn_;
-vector<float>    phoScale_syst_up_;
-vector<float>    phoScale_syst_dn_;
-vector<float>    phoScale_gain_up_;
-vector<float>    phoScale_gain_dn_;
-vector<float>    phoResol_rho_up_;
-vector<float>    phoResol_rho_dn_;
-vector<float>    phoResol_phi_up_;
-vector<float>    phoResol_phi_dn_;
 
 vector<Float_t>      phoPFClusEcalIso_;
 vector<Float_t>      phoPFClusHcalIso_;
@@ -95,8 +78,31 @@ vector<Float_t>      phoELeftFull5x5_;
 vector<Float_t>      phoERightFull5x5_;
 vector<Float_t>      phoETopFull5x5_;
 
-vector<int>  phoisMVA80_;
-vector<int>  phoisMVA90_;
+//Scale and smearing
+vector<float>  phoEnergyPostCorr_;
+vector<float>  phoenergyScaleValue_;
+vector<float>  phoenergySigmaValue_;
+vector<float>  phoScale_unc_up_;
+vector<float>  phoScale_unc_dn_;
+vector<float>  phoSigma_unc_up_;
+vector<float>  phoSigma_unc_dn_;
+
+//ID scale factor
+vector<float>  phoIDSF_Loose_;
+vector<float>  phoIDSF_Medium_;
+vector<float>  phoIDSF_Tight_;
+vector<float>  phoIDSF_wp80_;
+vector<float>  phoIDSF_wp90_;
+vector<float>  phoIDSFUp_Loose_;
+vector<float>  phoIDSFUp_Medium_;
+vector<float>  phoIDSFUp_Tight_;
+vector<float>  phoIDSFUp_wp80_;
+vector<float>  phoIDSFUp_wp90_;
+vector<float>  phoIDSFDown_Loose_;
+vector<float>  phoIDSFDown_Medium_;
+vector<float>  phoIDSFDown_Tight_;
+vector<float>  phoIDSFDown_wp80_;
+vector<float>  phoIDSFDown_wp90_;
 
 vector<float> phoHaloTaggerMVAVal_;
 
@@ -115,12 +121,9 @@ void ggNtuplizer::branchesPhotons(TTree* tree) {
   
   tree->Branch("nPho",                    &nPho_);
   tree->Branch("phoE",                    &phoE_);
-  tree->Branch("phoSigmaE",               &phoSigmaE_);
   tree->Branch("phoEt",                   &phoEt_);
   tree->Branch("phoEta",                  &phoEta_);
   tree->Branch("phoPhi",                  &phoPhi_);
-  tree->Branch("phoCalibE",               &phoCalibE_);
-  tree->Branch("phoCalibEt",              &phoCalibEt_);
   tree->Branch("phoSCE",                  &phoSCE_);
   tree->Branch("phoSCRawE",               &phoSCRawE_);
   tree->Branch("phoESEnP1",               &phoESEnP1_);
@@ -148,10 +151,6 @@ void ggNtuplizer::branchesPhotons(TTree* tree) {
   tree->Branch("phoPFNeuIso",             &phoPFNeuIso_);
   tree->Branch("phoPFChWorstIso",         &phoPFChWorstIso_);
   tree->Branch("phoIDMVA",                &phoIDMVA_);
-  tree->Branch("phoFiredSingleTrgs",      &phoFiredSingleTrgs_);
-  tree->Branch("phoFiredDoubleTrgs",      &phoFiredDoubleTrgs_);
-  tree->Branch("phoFiredTripleTrgs",      &phoFiredTripleTrgs_);
-  tree->Branch("phoFiredL1Trgs",          &phoFiredL1Trgs_);
   tree->Branch("phoSeedTime",             &phoSeedTime_);
   tree->Branch("phoSeedEnergy",           &phoSeedEnergy_);
   tree->Branch("phoMIPTotEnergy",         &phoMIPTotEnergy_);
@@ -174,20 +173,7 @@ void ggNtuplizer::branchesPhotons(TTree* tree) {
   tree->Branch("phoMIPIntercept",                 &phoMIPIntercept_);
   tree->Branch("phoMIPNhitCone",                  &phoMIPNhitCone_);
   tree->Branch("phoMIPIsHalo",                    &phoMIPIsHalo_);
-
-  tree->Branch("phoxtalBits",      &phoxtalBits_);
   tree->Branch("phoIDbit",         &phoIDbit_);
-  tree->Branch("phoScale_stat_up", &phoScale_stat_up_);
-  tree->Branch("phoScale_stat_dn", &phoScale_stat_dn_);
-  tree->Branch("phoScale_syst_up", &phoScale_syst_up_);
-  tree->Branch("phoScale_syst_dn", &phoScale_syst_dn_);
-  tree->Branch("phoScale_gain_up", &phoScale_gain_up_);
-  tree->Branch("phoScale_gain_dn", &phoScale_gain_dn_);
-  tree->Branch("phoResol_rho_up",  &phoResol_rho_up_);
-  tree->Branch("phoResol_rho_dn",  &phoResol_rho_dn_);
-  tree->Branch("phoResol_phi_up",  &phoResol_phi_up_);
-  tree->Branch("phoResol_phi_dn",  &phoResol_phi_dn_);
-
 
   tree->Branch("phoE2x5BottomFull5x5",      & phoE2x5BottomFull5x5_);
   tree->Branch("phoE2x5LeftFull5x5",        & phoE2x5LeftFull5x5_);
@@ -205,10 +191,38 @@ void ggNtuplizer::branchesPhotons(TTree* tree) {
   tree->Branch("phoE1x3Full5x5",            & phoE1x3Full5x5_);
   tree->Branch("phoE1x5Full5x5",            & phoE1x5Full5x5_);
   tree->Branch("phoE2x5Full5x5",            & phoE2x5Full5x5_);
-  
-  tree->Branch("phoisMVA80",                &phoisMVA80_);
-  tree->Branch("phoisMVA90",                &phoisMVA90_);
 
+  if(store_photon_scalnsmear){
+  tree->Branch("phoecalTrkEnergyPostCorr",      &phoEnergyPostCorr_);
+  tree->Branch("phoenergyScaleValue",            &phoenergyScaleValue_);
+  tree->Branch("phoenergySigmaValue_",        &phoenergySigmaValue_);
+  tree->Branch("phoScale_unc_up_",            &phoScale_unc_up_);
+  tree->Branch("phoScale_unc_dn_",            &phoScale_unc_dn_);
+  tree->Branch("phoSigma_unc_up_",            &phoSigma_unc_up_);
+  tree->Branch("phoSigma_unc_dn_",            &phoSigma_unc_dn_);  
+  }
+
+  if(store_photon_idSF){
+  tree->Branch("phoIDSF_Loose",      &phoIDSF_Loose_);
+  tree->Branch("phoIDSF_Medium",     &phoIDSF_Medium_);
+  tree->Branch("phoIDSF_Tight",      &phoIDSF_Tight_);
+  tree->Branch("phoIDSF_wp80",       &phoIDSF_wp80_);
+  tree->Branch("phoIDSF_wp90",       &phoIDSF_wp90_);
+  
+  tree->Branch("phoIDSFUp_Loose",    &phoIDSFUp_Loose_);
+  tree->Branch("phoIDSFUp_Medium",   &phoIDSFUp_Medium_);
+  tree->Branch("phoIDSFUp_Tight",    &phoIDSFUp_Tight_);
+  tree->Branch("phoIDSFUp_wp80",     &phoIDSFUp_wp80_);
+  tree->Branch("phoIDSFUp_wp90",     &phoIDSFUp_wp90_);
+ 
+  tree->Branch("phoIDSFDown_Loose",  &phoIDSFDown_Loose_);
+  tree->Branch("phoIDSFDown_Medium", &phoIDSFDown_Medium_);
+  tree->Branch("phoIDSFDown_Tight",  &phoIDSFDown_Tight_);
+  tree->Branch("phoIDSFDown_wp80",   &phoIDSFDown_wp80_);
+  tree->Branch("phoIDSFDown_wp90",   &phoIDSFDown_wp90_);
+}
+
+  
   tree->Branch("phoHaloTaggerMVAVal",       &phoHaloTaggerMVAVal_);
   
 }
@@ -217,12 +231,9 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
   
   // cleanup from previous execution
   phoE_                   .clear();
-  phoSigmaE_              .clear();
   phoEt_                  .clear();
   phoEta_                 .clear();
   phoPhi_                 .clear();
-  phoCalibE_              .clear();
-  phoCalibEt_             .clear();
   phoSCE_                 .clear();
   phoSCRawE_              .clear();
   phoESEnP1_              .clear();
@@ -250,11 +261,6 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
   phoSeedBCE_           .clear();
   phoSeedBCEta_         .clear();
   phoIDMVA_               .clear();
-  phoFiredSingleTrgs_     .clear();
-  phoFiredDoubleTrgs_     .clear();
-  phoFiredTripleTrgs_     .clear();
-  phoFiredL1Trgs_         .clear();
-  phoxtalBits_            .clear();
   phoSeedTime_            .clear();
   phoSeedEnergy_          .clear();
   phoMIPTotEnergy_        .clear();
@@ -281,16 +287,6 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
   phoMIPIsHalo_         .clear();
   
   phoIDbit_.clear();
-  phoScale_stat_up_.clear();
-  phoScale_stat_dn_.clear();
-  phoScale_syst_up_.clear();
-  phoScale_syst_dn_.clear();
-  phoScale_gain_up_.clear();
-  phoScale_gain_dn_.clear();
-  phoResol_rho_up_.clear();
-  phoResol_rho_dn_.clear();
-  phoResol_phi_up_.clear();
-  phoResol_phi_dn_.clear();  
 
   phoE2x5BottomFull5x5_.clear();
   phoE2x5LeftFull5x5_.clear();
@@ -308,10 +304,30 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
   phoE1x5Full5x5_.clear();
   phoE2x5Full5x5_.clear();
 
+  phoEnergyPostCorr_.clear();
+  phoenergyScaleValue_.clear();
+  phoenergySigmaValue_.clear();
+  phoScale_unc_up_.clear();
+  phoScale_unc_dn_.clear();
+  phoSigma_unc_up_.clear();
+  phoSigma_unc_dn_.clear();
 
-  phoisMVA80_.clear();
-  phoisMVA90_.clear();
-
+  phoIDSF_Loose_       .clear();
+  phoIDSF_Medium_      .clear();
+  phoIDSF_Tight_       .clear();
+  phoIDSF_wp80_        .clear();
+  phoIDSF_wp90_        .clear();
+  phoIDSFUp_Loose_     .clear();
+  phoIDSFUp_Medium_    .clear();
+  phoIDSFUp_Tight_     .clear();
+  phoIDSFUp_wp80_      .clear();
+  phoIDSFUp_wp90_      .clear();
+  phoIDSFDown_Loose_   .clear();
+  phoIDSFDown_Medium_  .clear();
+  phoIDSFDown_Tight_   .clear();
+  phoIDSFDown_wp80_    .clear();
+  phoIDSFDown_wp90_    .clear();
+  
   phoHaloTaggerMVAVal_.clear();
   
   nPho_ = 0;
@@ -323,12 +339,6 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
     edm::LogWarning("ggNtuplizer") << "no pat::Photons in event";
     return;
   }
-
-  
-  /*std::vector<edm::Handle<edm::ValueMap<bool> > > phoVIDDecisionHandles(2);
-  e.getByToken(PhotonWP80MapToken_, phoVIDDecisionHandles[0]);
-  e.getByToken(PhotonWP90MapToken_, phoVIDDecisionHandles[1]);
-  */
   
   edm::Handle<reco::PhotonCollection> recoPhotonHandle;
   e.getByToken(recophotonCollection_, recoPhotonHandle);
@@ -350,10 +360,7 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
   for (edm::View<pat::Photon>::const_iterator iPho = photonHandle->begin(); iPho != photonHandle->end(); ++iPho) {
 
     phoE_             .push_back(iPho->energy());
-    //phoCalibE_        .push_back(iPho->userFloat("ecalEnergyPostCorr"));
     phoEt_            .push_back(iPho->et());
-    //phoCalibEt_       .push_back(iPho->et()*iPho->userFloat("ecalEnergyPostCorr")/iPho->energy());
-    //phoSigmaE_        .push_back(iPho->userFloat("ecalEnergyErrPostCorr"));
     phoEta_           .push_back(iPho->eta());
     phoPhi_           .push_back(iPho->phi());
     phoSCE_           .push_back((*iPho).superCluster()->energy());
@@ -370,12 +377,6 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
     phoR9_            .push_back(iPho->r9());
     phoHoverE_        .push_back(iPho->hadTowOverEm());
     phoESEffSigmaRR_  .push_back(lazyTool.eseffsirir(*((*iPho).superCluster())));
-
-    /*phoPFChIso_       .push_back(iPho->userFloat("phoChargedIsolation"));
-    phoPFPhoIso_      .push_back(iPho->userFloat("phoPhotonIsolation"));
-    phoPFNeuIso_      .push_back(iPho->userFloat("phoNeutralHadronIsolation"));
-    phoPFChWorstIso_  .push_back(iPho->userFloat("phoWorstChargedIsolation"));
-    */
 
     phoPFChIso_       .push_back(iPho->chargedHadronIso());
     phoPFPhoIso_      .push_back(iPho->photonIso());
@@ -415,24 +416,89 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
     phoE3x3Full5x5_          . push_back(iPho->full5x5_showerShapeVariables()                                    . e3x3);
     
     phoHaloTaggerMVAVal_       .push_back(iPho->haloTaggerMVAVal());
-    
-    //Run 2
-    //phoIDMVA_         .push_back(iPho->userFloat("PhotonMVAEstimatorRunIIFall17v2Values"));
 
+
+    //For scale and smearing
+
+    if(store_photon_scalnsmear){
+                try {
+                    float originalPt = iPho->pt();
+                    float scEta = iPho->superCluster()->eta();
+                    float r9 = iPho->r9();
+                    DetId seedDetId = iPho->superCluster()->seed()->seed();
+		    int seedGain = EGMCorrectionManager::GetSeedGain(seedDetId, e, ebReducedRecHitCollection_, eeReducedRecHitCollection_);
+                    int run = isData ? e.id().run() : 1;
+                    double randomNum = isData ? 0.0 : normalDistribution_(randomGenerator_);
+                    double correctedPt = egmCorrectionManager_->applyCorrectedPhotonPt(
+                        originalPt, run, scEta, r9, seedGain, isData, randomNum
+                    );
+                    phoEnergyPostCorr_.push_back(correctedPt);
+                    if (isData) {
+                        double scale = egmCorrectionManager_->getPhotonScale(run, scEta, r9, originalPt, seedGain);
+			double scaleUnc = egmCorrectionManager_->getPhotonScaleUnc(originalPt, r9, std::abs(scEta));
+                        phoenergyScaleValue_.push_back(scale);
+			phoScale_unc_up_.push_back(scale + scaleUnc);
+			phoScale_unc_dn_.push_back(scale - scaleUnc);
+			
+                        phoenergySigmaValue_.push_back(0.0);
+			phoSigma_unc_up_.push_back(0.0);
+                        phoSigma_unc_dn_.push_back(0.0);
+			
+                    } else {
+                        double smear = egmCorrectionManager_->getPhotonSmear(originalPt, r9, std::abs(scEta));
+			double smearUnc = egmCorrectionManager_->getPhotonSmearUnc(originalPt, r9, std::abs(scEta));
+                        phoenergyScaleValue_.push_back(1.0);
+			phoScale_unc_up_.push_back(0.0);
+                        phoScale_unc_dn_.push_back(0.0);
+			
+                        phoenergySigmaValue_.push_back(smear);
+			phoSigma_unc_up_.push_back(smear + smearUnc);
+			phoSigma_unc_dn_.push_back(smear - smearUnc);
+                    }
+                    
+                } catch (const std::exception& e) {
+		    phoEnergyPostCorr_.push_back(iPho->pt());
+                    phoenergyScaleValue_.push_back(1.0);
+                    phoenergySigmaValue_.push_back(0.0);
+                    phoScale_unc_up_.push_back(0.0);
+                    phoScale_unc_dn_.push_back(0.0);
+		    phoSigma_unc_up_.push_back(0.0);
+                    phoSigma_unc_dn_.push_back(0.0);
+                }
+    }//End of scale and smear
+
+    if(store_photon_idSF){
+    double pt = iPho->pt();
+    double eta = iPho->eta();
+    double phi = iPho->phi();
+    
+    phoIDSF_Loose_.push_back(egmIDSFManager_->getPhotonIDSF("Loose", pt, eta, phi));
+    phoIDSF_Medium_.push_back(egmIDSFManager_->getPhotonIDSF("Medium", pt, eta, phi));
+    phoIDSF_Tight_.push_back(egmIDSFManager_->getPhotonIDSF("Tight", pt, eta, phi));
+    phoIDSF_wp80_.push_back(egmIDSFManager_->getPhotonIDSF("wp80", pt, eta, phi));
+    phoIDSF_wp90_.push_back(egmIDSFManager_->getPhotonIDSF("wp90", pt, eta, phi));
+    
+    phoIDSFUp_Loose_.push_back(egmIDSFManager_->getPhotonIDSFUncUp("Loose", pt, eta, phi));
+    phoIDSFUp_Medium_.push_back(egmIDSFManager_->getPhotonIDSFUncUp("Medium", pt, eta, phi));
+    phoIDSFUp_Tight_.push_back(egmIDSFManager_->getPhotonIDSFUncUp("Tight", pt, eta, phi));
+    phoIDSFUp_wp80_.push_back(egmIDSFManager_->getPhotonIDSFUncUp("wp80", pt, eta, phi));
+    phoIDSFUp_wp90_.push_back(egmIDSFManager_->getPhotonIDSFUncUp("wp90", pt, eta, phi));
+    
+    phoIDSFDown_Loose_.push_back(egmIDSFManager_->getPhotonIDSFUncDown("Loose", pt, eta, phi));
+    phoIDSFDown_Medium_.push_back(egmIDSFManager_->getPhotonIDSFUncDown("Medium", pt, eta, phi));
+    phoIDSFDown_Tight_.push_back(egmIDSFManager_->getPhotonIDSFUncDown("Tight", pt, eta, phi));
+    phoIDSFDown_wp80_.push_back(egmIDSFManager_->getPhotonIDSFUncDown("wp80", pt, eta, phi));
+    phoIDSFDown_wp90_.push_back(egmIDSFManager_->getPhotonIDSFUncDown("wp90", pt, eta, phi));
+    }//End of ID SF    
+    
     ///Run 3
     ///cut values here: https://github.com/cms-sw/cmssw/blob/master/RecoEgamma/PhotonIdentification/python/Identification/mvaPhotonID_Winter22_122X_V1_cff.py#L25-L36
+
     phoIDMVA_         .push_back(iPho->userFloat("PhotonMVAEstimatorRunIIIWinter22v1Values"));
     
     // VID decisions     
-    UShort_t tmpphoIDbit = 0;        
-    /*bool isPassLoose  = iPho->photonID("cutBasedPhotonID-Fall17-94X-V2-loose");
-    if (isPassLoose)  setbit(tmpphoIDbit, 0);   
-    bool isPassMedium = iPho->photonID("cutBasedPhotonID-Fall17-94X-V2-medium");
-    if (isPassMedium) setbit(tmpphoIDbit, 1);    
-    bool isPassTight  = iPho->photonID("cutBasedPhotonID-Fall17-94X-V2-tight");
-    if (isPassTight)  setbit(tmpphoIDbit, 2);
-    */
-
+    UShort_t tmpphoIDbit = 0;
+    
     ///Run 3
     bool isPassLoose  = iPho->photonID("cutBasedPhotonID-RunIIIWinter22-122X-V1-loose");
     if (isPassLoose)  setbit(tmpphoIDbit, 0);   
@@ -441,50 +507,14 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
     bool isPassTight  = iPho->photonID("cutBasedPhotonID-RunIIIWinter22-122X-V1-tight");
     if (isPassTight)  setbit(tmpphoIDbit, 2);
 
-    phoIDbit_.push_back(tmpphoIDbit);      
-
-    /*
-    //https://cmssdt.cern.ch/lxr/source/L1Trigger/L1TNtuples/src/L1AnalysisRecoPhoton.cc#0009
-    //https://cmssdt.cern.ch/lxr/source/L1Trigger/L1TNtuples/plugins/L1PhotonRecoTreeProducer.cc#0086
-    edm::View<pat::Photon> photonEdmRef(photonHandle, nPho_);
-    phoisMVA80_ = (*(phoVIDDecisionHandles[0]))[photonEdmRef];
-    phoisMVA90_ = (*(phoVIDDecisionHandles[1]))[photonEdmRef];
-    */
-
+    phoIDbit_.push_back(tmpphoIDbit);   
     
-    
-    
-    //phoisMVA80_ = iPho->photonID("egmPhotonIDs:mvaPhoID-RunIIIWinter22-v1-wp80");
-    //phoisMVA90_ = iPho->photonID("egmPhotonIDs:mvaPhoID-RunIIIWinter22-v1-wp90");
-      
-    // systematics for energy scale and resolution
-    /*
-    phoScale_stat_up_.push_back(iPho->userFloat("energyScaleStatUp"));
-    phoScale_stat_dn_.push_back(iPho->userFloat("energyScaleStatDown"));
-    phoScale_syst_up_.push_back(iPho->userFloat("energyScaleSystUp"));
-    phoScale_syst_dn_.push_back(iPho->userFloat("energyScaleSystDown"));
-    phoScale_gain_up_.push_back(iPho->userFloat("energyScaleGainUp"));
-    phoScale_gain_dn_.push_back(iPho->userFloat("energyScaleGainDown"));
-    phoResol_rho_up_ .push_back(iPho->userFloat("energySigmaRhoUp"));
-    phoResol_rho_dn_ .push_back(iPho->userFloat("energySigmaRhoDown"));
-    phoResol_phi_up_ .push_back(iPho->userFloat("energySigmaPhiUp"));
-    phoResol_phi_dn_ .push_back(iPho->userFloat("energySigmaPhiDown"));
-    */
-    ///////////////////////////////SATURATED/UNSATURATED ///from ggFlash////
     DetId seed = (iPho->superCluster()->seed()->hitsAndFractions())[0].first;
-    bool isBarrel = seed.subdetId() == EcalBarrel;
-    //const EcalRecHitCollection * rechits = (isBarrel?lazyTool.getEcalEBRecHitCollection():lazyTool.getEcalEERecHitCollection());
-    // Assuming seed_ is a pointer to CaloCluster
-    // const reco::BasicCluster& basicSeed = *(iPho->superCluster()->seed());
-    // const EcalRecHitCollection * rechits = (isBarrel?lazyTool.getEcalEBRecHitCollection():lazyTool.getEcalEERecHitCollection());
-    // const EcalRecHitCollection * rechits = lazyTool.getEcalRecHitCollection(basicSeed);
-    
+    bool isBarrel = seed.subdetId() == EcalBarrel; 
     //For Run3
     const EcalRecHitCollection* rechits = isBarrel ? ebRecHits : eeRecHits;
-    
     EcalRecHitCollection::const_iterator theSeedHit = rechits->find(seed);
     if (theSeedHit != rechits->end()) {
-      //std::cout<<"(*theSeedHit).time()"<<(*theSeedHit).time()<<"seed energy: "<<(*theSeedHit).energy()<<std::endl;  
 
       phoSeedTime_  .push_back((*theSeedHit).time());
       phoSeedEnergy_.push_back((*theSeedHit).energy());
@@ -493,62 +523,8 @@ void ggNtuplizer::fillPhotons(const edm::Event& e, const edm::EventSetup& es) {
       phoSeedEnergy_.push_back(-99.);
     }
     
-    //double seedtime = lazyTool.BasicClusterSeedTime(basicSeed);
-    //phoSeedTime_  .push_back(seedtime);
-     
-    
-    /*
-    unsigned short nSaturated = 0, nLeRecovered = 0, nNeighRecovered = 0, nGain1 = 0, nGain6 = 0, nWeired = 0;
-    int isSaturated       = 0;
-    int isSaturated_gain6 = 0;
-    
-    UShort_t tmpxtalbit = 0;
-
-    auto matrix5x5 = lazyTool.matrixDetId(seed,-2,+2,-2,+2);
-    for (auto & deId : matrix5x5 ) {
-      /// cout << "matrix " << deId.rawId() << endl;
-      auto rh = rechits->find(deId);
-      if( rh != rechits->end() ) {
-	nSaturated += rh->checkFlag( EcalRecHit::kSaturated );
-	nLeRecovered += rh->checkFlag( EcalRecHit::kLeadingEdgeRecovered );
-	nNeighRecovered += rh->checkFlag( EcalRecHit::kNeighboursRecovered );
-	nGain1 += rh->checkFlag( EcalRecHit::kHasSwitchToGain1 );
-	nGain6 += rh->checkFlag( EcalRecHit::kHasSwitchToGain6 );
-	nWeired += rh->checkFlag( EcalRecHit::kWeird ) || rh->checkFlag( EcalRecHit::kDiWeird );
-	
-	if( rh->checkFlag( EcalRecHit::kHasSwitchToGain1 ) && rh->checkFlag( EcalRecHit::kSaturated ) && !isSaturated){ //this is to fill only once, i.e. only if xtal has this, no need to check for other xtals
-
-	  setbit(tmpxtalbit, 0);
-	  isSaturated = 1;
-	  //break;
-	}
-	
-	if( rh->checkFlag( EcalRecHit::kHasSwitchToGain6 ) && rh->checkFlag( EcalRecHit::kSaturated ) && !isSaturated_gain6){ //this is to fill only once, i.e. only if xtal has this, no need to check for other xtals
-
-	  setbit(tmpxtalbit, 1);
-	  isSaturated_gain6 = 1;
-	  //break;
-	}
-	
-      }//if( rh != rechits->end() ) 
-       
-      if (nWeired>0) setbit(tmpxtalbit,2);      
-      if (nGain6>0) setbit(tmpxtalbit,3); 
-
-    }//for(auto & deId : matrix5x5 )
-  
-    phoxtalBits_.push_back(tmpxtalbit);
-    */
-    /*phoFiredSingleTrgs_     .push_back(matchSinglePhotonTriggerFilters(iPho->et(), iPho->eta(), iPho->phi()));
-    phoFiredDoubleTrgs_     .push_back(matchDoublePhotonTriggerFilters(iPho->et(), iPho->eta(), iPho->phi()));
-    phoFiredTripleTrgs_     .push_back(matchTriplePhotonTriggerFilters(iPho->et(), iPho->eta(), iPho->phi()));
-    phoFiredL1Trgs_         .push_back(matchL1TriggerFilters(iPho->et(), iPho->eta(), iPho->phi()));
-    */
-    
     const auto &vCov  = (isBarrel?EcalClusterTools::localCovariances(*((*iPho).superCluster()->seed()), ebRecHits,  p_topology) : EcalClusterTools::localCovariances(*((*iPho).superCluster()->seed()), eeRecHits,  p_topology));
     
-    //std::vector<float> vCov = lazyToolnoZS.localCovariances( *((*iPho).superCluster()->seed()) );
-    //const float see = (isnan(vCov[0]) ? 0. : sqrt(vCov[0]));
     const float spp = (isnan(vCov[2]) ? 0. : sqrt(vCov[2]));
     const float sep = vCov[1];
 

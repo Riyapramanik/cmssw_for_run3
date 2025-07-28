@@ -10,7 +10,8 @@ void setbit(UShort_t& x, UShort_t bit) {
 ggNtuplizer::ggNtuplizer(const edm::ParameterSet& ps) :
   //hltPrescaleProvider_(ps, consumesCollector(), *this)
   ecalClusterToolsESGetTokens_{consumesCollector()} ,
-  caloTop(esConsumes())
+  caloTop(esConsumes()),
+  randomGenerator_(12345),normalDistribution_(0.0, 1.0)
 {
 
   development_               = ps.getParameter<bool>("development");
@@ -47,6 +48,7 @@ ggNtuplizer::ggNtuplizer(const edm::ParameterSet& ps) :
   puCollection_              = consumes<vector<PileupSummaryInfo> >    (ps.getParameter<InputTag>("pileupCollection"));
   genParticlesCollection_    = consumes<vector<reco::GenParticle> >    (ps.getParameter<InputTag>("genParticleSrc"));
   pfMETlabel_                = consumes<View<pat::MET> >               (ps.getParameter<InputTag>("pfMETLabel"));
+  puppiMETlabel_             = consumes<View<pat::MET> >               (ps.getParameter<InputTag>("puppiMETLabel"));
   electronCollection_        = consumes<View<pat::Electron> >          (ps.getParameter<InputTag>("electronSrc"));
   gsfTracks_                 = consumes<View<reco::GsfTrack>>          (ps.getParameter<InputTag>("gsfTrackSrc"));
 
@@ -73,7 +75,8 @@ ggNtuplizer::ggNtuplizer(const edm::ParameterSet& ps) :
   prefweightdown_token_      = consumes<double>(edm::InputTag("prefiringweight:nonPrefiringProbDown"));
 
   // Added by me
-  tok_pfjetAK4s_ = consumes<edm::View<pat::Jet>>(ps.getParameter<edm::InputTag>("PFJetAK4Collection"));
+  tok_pfjetAK4s_ = consumes<edm::View<pat::Jet>>(ps.getParameter<edm::InputTag>("PFJetsAK4"));
+  tok_genjetAK4s_= consumes<reco::GenJetCollection>( ps.getParameter<edm::InputTag>("GENJetAK4"));
   tok_Rho_ = consumes<double>(ps.getParameter<InputTag>("PFRho"));
   min_pt_AK4jet = ps.getUntrackedParameter<double>("minJetPt", 25.);
   max_eta = ps.getUntrackedParameter<double>("maxEta",3.);
@@ -84,6 +87,25 @@ ggNtuplizer::ggNtuplizer(const edm::ParameterSet& ps) :
   isUltraLegacy = ps.getUntrackedParameter<bool>("UltraLegacy", false);
   tok_muons_ = consumes<edm::View<pat::Muon>> ( ps.getParameter<edm::InputTag>("Muons"));
   mJetVetoMap = ps.getParameter<std::string>("JetVetoMap");
+  
+  store_electron_scalnsmear = ps.getUntrackedParameter<bool>("store_electron_scalnsmear", false);
+  store_photon_scalnsmear = ps.getUntrackedParameter<bool>("store_photon_scalnsmear", false);
+  store_electrons = ps.getUntrackedParameter<bool>("store_electrons", false);
+  store_muons = ps.getUntrackedParameter<bool>("store_muons", false);
+  store_photons = ps.getUntrackedParameter<bool>("store_photons", false);
+  store_ak4jets = ps.getUntrackedParameter<bool>("store_ak4jets", false);
+  store_CHS_met   = ps.getUntrackedParameter<bool>("store_CHS_met", false);
+  store_PUPPI_met = ps.getUntrackedParameter<bool>("store_PUPPI_met", false);
+  store_electron_idSF      = ps.getUntrackedParameter<bool>("store_electron_idSF", false);
+  store_photon_idSF        = ps.getUntrackedParameter<bool>("store_photon_idSF", false);
+    
+  //Scale and Smearing for electron and photon
+  dataYear_ = ps.getParameter<int>("dataYear");
+  dataPeriod_ = ps.getParameter<std::string>("dataPeriod");
+  useETDependentCorrections_ = ps.getParameter<bool>("useETDependentCorrections");
+  applyEGMCorrections_ = ps.getParameter<bool>("applyEGMCorrections");
+  
+  isData_ = ps.getParameter<bool>("isData");
   
   Service<TFileService> fs;
   tree_    = fs->make<TTree>("EventTree", "Event data (tag V10_02_10_04)");
@@ -100,17 +122,11 @@ ggNtuplizer::ggNtuplizer(const edm::ParameterSet& ps) :
   branchesPhotons(tree_);
   branchesElectrons(tree_);
   branchesMuons(tree_);
-  //if (dumpPFPhotons_)   branchesPFPhotons(tree_);
-  //if (dumpHFElectrons_) branchesHFElectrons(tree_);
-  //if (dumpTaus_)        branchesTaus(tree_);
-  //if (dumpJets_)        branchesJets(tree_);
-  //if (dumpAK8Jets_)     branchesAK8Jets(tree_);
-
 }
 
 ggNtuplizer::~ggNtuplizer() {
   cleanupPhotons();
-  //  delete cicPhotonId_;
+ 
 }
 
 void ggNtuplizer::analyze(const edm::Event& e, const edm::EventSetup& es) {
@@ -127,10 +143,7 @@ void ggNtuplizer::analyze(const edm::Event& e, const edm::EventSetup& es) {
   // best-known primary vertex coordinates
   math::XYZPoint pv(0, 0, 0);
   for (vector<reco::Vertex>::const_iterator v = vtxHandle->begin(); v != vtxHandle->end(); ++v) {
-    // replace isFake() for miniAOD since it requires tracks while miniAOD vertices don't have tracks:
-    // Vertex.h: bool isFake() const {return (chi2_==0 && ndof_==0 && tracks_.empty());}
     bool isFake = (v->chi2() == 0 && v->ndof() == 0);
-
     if (!isFake) {
       pv.SetXYZ(v->x(), v->y(), v->z());
       vtx = *v;
@@ -151,24 +164,28 @@ void ggNtuplizer::analyze(const edm::Event& e, const edm::EventSetup& es) {
   fillElectrons(e, es, pv);
   fillMuons(e, pv, vtx);
   fillPhotons(e, es); 
-  //if (dumpPFPhotons_)    fillPFPhotons(e, es);
-  //  if (dumpHFElectrons_ ) fillHFElectrons(e);
-  //if (dumpTaus_)         fillTaus(e);
-  //  if (dumpJets_)         fillJets(e,es);
-  // if (dumpAK8Jets_)      fillAK8Jets(e,es);
 
   hEvents_->Fill(1.5);
   tree_->Fill();
 
-}
 
-// void ggNtuplizer::fillDescriptions(edm::ConfigurationDescriptions& descriptions)
-// {
-//   //The following says we do not know what parameters are allowed so do no validation
-//   // Please change this to state exactly what you do use, even if it is no parameters
-//   edm::ParameterSetDescription desc;
-//   desc.setUnknown();
-//   descriptions.addDefault(desc);
-// }
+  //scale and smearing for electron and photon
+   if (applyEGMCorrections_) {
+        try {
+            egmCorrectionManager_ = std::make_unique<EGMCorrectionManager>(
+                dataYear_, dataPeriod_, useETDependentCorrections_
+									   );
+	}catch (const std::exception& e) {
+	  applyEGMCorrections_ = false;
+        }
+   }
+
+   if (store_electron_idSF || store_photon_idSF) {
+        egmIDSFManager_ = std::make_unique<EGMIDSFManager>(dataYear_, dataPeriod_);
+    }
+	
+
+  
+}
 
 DEFINE_FWK_MODULE(ggNtuplizer);

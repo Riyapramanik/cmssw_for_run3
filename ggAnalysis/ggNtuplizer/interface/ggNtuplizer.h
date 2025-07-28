@@ -38,12 +38,10 @@
 
 
 
-//#include "Geometry/Records/interface/PCastorRcd.h"
-//#include "EgammaAnalysis/ElectronTools/interface/EnergyScaleCorrection_class.h"
-//#include "HiggsAnalysis/HiggsTo2photons/interface/CiCPhotonID.h"
-//#include "JetMETCorrections/Modules/interface/JetResolution.h"
-//#include "PhysicsTools/SelectorUtils/interface/PFJetIDSelectionFunctor.h"
-//#include "HLTrigger/HLTcore/interface/HLTPrescaleProvider.h"
+//Scale and smearing for Photon                                                                                                                        
+#include "EGMCorrectionManager.h"
+#include <random>
+#include "EGMIDSFManager.h"
 
 using namespace std;
 using namespace edm;
@@ -84,27 +82,16 @@ class ggNtuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
   void branchesGenPart    (TTree*);
   void branchesMET        (TTree*);
   void branchesPhotons    (TTree*);
-  //void branchesPFPhotons  (TTree*);
   void branchesElectrons  (TTree*);
-  //void branchesHFElectrons(TTree*);
   void branchesMuons      (TTree*);
-  /*void branchesTaus       (TTree*);
-  void branchesJets       (TTree*);
-  void branchesAK8Jets    (TTree*);
-  */
   void fillGlobalEvent(const edm::Event&, const edm::EventSetup&);
   void fillGenInfo    (const edm::Event&);
   void fillGenPart    (const edm::Event&);
   void fillMET        (const edm::Event&, const edm::EventSetup&);
   void fillPhotons    (const edm::Event&, const edm::EventSetup&);
-  //void fillPFPhotons  (const edm::Event&, const edm::EventSetup&);
   void fillElectrons  (const edm::Event&, const edm::EventSetup&, math::XYZPoint&);
-  //void fillHFElectrons(const edm::Event&);
   void fillMuons      (const edm::Event&, math::XYZPoint&, const reco::Vertex);
-  /*void fillTaus       (const edm::Event&);
-  void fillJets       (const edm::Event&, const edm::EventSetup&);
-  void fillAK8Jets    (const edm::Event&, const edm::EventSetup&);
-  */
+  
   void branchesAK4PUPPIJets(TTree* tree);
   void fillAK4PUPPIJets(const edm::Event& e, const edm::EventSetup& es);
   void cleanupPhotons();
@@ -163,8 +150,7 @@ class ggNtuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
   edm::EDGetTokenT<reco::PFCandidateCollection>    pfAllParticles_;
   edm::EDGetTokenT<vector<pat::PackedCandidate> >  pckPFCdsLabel_;
   edm::EDGetTokenT<edm::View<reco::Candidate> >    recoCdsLabel_;
-  // edm::EDGetTokenT<edm::View<pat::Jet> >           jetsAK4Label_;
-  //edm::EDGetTokenT<edm::View<pat::Jet> >           jetsAK8Label_;
+  
   edm::EDGetTokenT<reco::JetTagCollection>         boostedDoubleSVLabel_;
   edm::EDGetTokenT<pat::PackedCandidateCollection> pckPFCandidateCollection_;
 
@@ -192,6 +178,13 @@ class ggNtuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
   bool isMC;
   bool isRun3;
   bool isUltraLegacy;
+  bool store_electron_scalnsmear,store_photon_scalnsmear;
+  bool store_electrons, store_muons, store_photons, store_ak4jets, store_CHS_met, store_PUPPI_met, store_electron_idSF, store_photon_idSF;
+
+  std::unique_ptr<EGMCorrectionManager> egmCorrectionManager_;
+  // ID Scale Factor Manager
+  std::unique_ptr<EGMIDSFManager> egmIDSFManager_;
+  
   std::string mJetVetoMap;
   
   TTree   *tree_;
@@ -200,15 +193,14 @@ class ggNtuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
   TH1F    *hPUTrue_;
   TH1F    *hGenWeight_;
   TH1F    *hSumGenWeight_;
-
-  //  CiCPhotonID                 *cicPhotonId_;
-  //EnergyScaleCorrection_class *egmScaler_;
-
-  /*JME::JetResolution            jetResolution_;
-  JME::JetResolutionScaleFactor jetResolutionSF_;
-  JME::JetResolution            AK8jetResolution_;
-  JME::JetResolutionScaleFactor AK8jetResolutionSF_;
-  */
   
+  std::mt19937 randomGenerator_;
+  std::normal_distribution<double> normalDistribution_;
+  int dataYear_;
+  std::string dataPeriod_;
+  bool useETDependentCorrections_;
+  bool applyEGMCorrections_;
+  bool isData_;
+
 };
 #endif
